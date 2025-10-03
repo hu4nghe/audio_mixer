@@ -1,3 +1,5 @@
+option(BUILD_TESTING "Enable testing" OFF)
+
 # ----------------- Dependency : my lock-free queue -----------------
 FetchContent_Declare(
         lockfree_queue
@@ -15,6 +17,7 @@ FetchContent_Declare(
 )
 
 set(USE_FETCHCONTENT FALSE)
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 
 if(WIN32)
     set(USE_FETCHCONTENT TRUE)
