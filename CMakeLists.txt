@@ -7,3 +7,10 @@ project(audio_mixer
 include(FetchContent)
 #add_subdirectory(modules/audio_mixer)
 add_subdirectory(modules/audio_queue)
+
+include(CTest)
+option(AUDIOMIXER_BUILD_TESTS "Build AudioMixer's own tests" ON)
+if(AUDIOMIXER_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
