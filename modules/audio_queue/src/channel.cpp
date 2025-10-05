@@ -1,17 +1,18 @@
+#include <format>
 #include <stdexcept>
 #include <algorithm>
 
 #include "channel.h"
 
 
-channel_layout::channel_layout(const std::string& name) 
+channel_layout::channel_layout(const std::string_view name)
 {
     if      (name == "mono")   value = mono;
     else if (name == "stereo") value = stereo;
     else if (name == "5.1")    value = five_point_one;
     else if (name == "7.1")    value = seven_point_one;
 
-    else throw std::invalid_argument("Unknown channel layout: " + name);
+    else throw std::invalid_argument(std::format("Unknown channel layout : {}", name));
 }
 
 auto channel_layout::matrix_to(channel_layout target) const -> matrix_type

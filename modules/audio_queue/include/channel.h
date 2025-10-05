@@ -13,7 +13,7 @@
 
 #include <cstdint>
 #include <vector>
-#include <string>
+#include <string_view>
 
 class channel_layout 
 {
@@ -30,7 +30,7 @@ public:
     constexpr channel_layout(value v) : value(v) {}
 
     /**
-     * @brief Construct from a string
+     * @brief Construct from a string_view
      * 
      * @param name the channel layout name, available names :
      * 
@@ -40,7 +40,8 @@ public:
      *      7.1
      *
      */
-    explicit channel_layout(const std::string& name);
+    channel_layout(const std::string_view name);
+    channel_layout(const char* name) : channel_layout(std::string_view{name}) {}
 
     /**
      * @brief Convert enum to string. 
