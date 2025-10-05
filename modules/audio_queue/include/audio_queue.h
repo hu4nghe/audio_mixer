@@ -13,14 +13,8 @@
 #include "audio_prop_def.h"
 #include "samplerate.h"
 
-#include <algorithm>
-#include <cstdint>
 #include <numeric>
 #include <print>
-#include <span>
-
-template <class input_type>
-concept audio_sample_type = std::integral<input_type> || std::floating_point<input_type>;
 
 template <audio_sample_type audio_type>
 class audio_queue
@@ -63,7 +57,7 @@ public :
     {
         // Converte all sample into float format.
         const uint8_t input_channels = input_context._channel_num;
-        auto input_data_float = convert_to_float(std::span{input_data, input_frame * input_channels});
+        auto input_data_float = convert_to_float<audio_type>(std::span{input_data, input_frame * input_channels});
         
         // Buffer for possible resample operation.
         std::vector<float> temp; 
@@ -133,28 +127,29 @@ public :
 
         return true;
     }
-
-private : 
-    /**
-     * @brief Tool functions to convert all input into float type(libsamplerate's resample method takes float* )
-     * 
-     * @param input input sequence
-     * @return std::vector<float> data converted to float
-     */
-    auto convert_to_float(std::span<const audio_type> input) 
-    -> std::vector<float> 
+    
+    bool pop_audio(const audio_ctx& output_ctx, audio_type* output_buffer, std::size_t frame_count)
     {
-        std::vector<float> output(input.size());
-        if constexpr (std::same_as<audio_type, float>) 
-            std::ranges::copy(input, output.begin());
-        else if constexpr (std::same_as<audio_type, double>)
-            std::ranges::transform(input, output.begin(), [](double  s){ return static_cast<float>(std::clamp(s, -1.0, 1.0)); });
-        else if constexpr (std::same_as<audio_type, int16_t>) 
-            std::ranges::transform(input, output.begin(), [](int16_t s){ return static_cast<float>(s) / 32768.0f; });
-        else if constexpr (std::same_as<audio_type, int32_t>) 
-            std::ranges::transform(input, output.begin(), [](int32_t s){ return static_cast<float>(s) / 2147483648.0f; });
-        else if constexpr (std::same_as<audio_type, uint8_t>) 
-            std::ranges::transform(input, output.begin(), [](uint8_t s){ return (static_cast<float>(s) - 128.0f) / 128.0f; });
-        return output;
+        const size_t total_samples = frame_count * output_ctx._channel_num;
+
+        std::vector<float> temp(total_samples, 0.0f);
+        size_t popped = 0;
+        float sample;
+        while (popped < total_samples && _queue.dequeue(sample))
+            temp[popped++] = sample;
+        
+        std::vector<float> existing_data(total_samples, 0.0f);
+        std::ranges::copy(convert_to_float<audio_type>(std::span{output_buffer, total_samples}), existing_data.begin());
+        for (size_t i = 0; i < total_samples; ++i)
+            existing_data[i] += temp[i];
+
+        for (float& s : existing_data)
+            s = std::clamp(s, -1.0f, 1.0f);
+
+        auto converted = convert_from_float<audio_type>(existing_data);
+
+        std::ranges::copy(converted, output_buffer);
+
+        return popped == total_samples;
     }
 };
