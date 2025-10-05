@@ -14,6 +14,7 @@
 #include "samplerate.h"
 
 #include <numeric>
+#include <ranges>
 #include <print>
 
 template <audio_sample_type audio_type>
@@ -138,17 +139,18 @@ public :
         while (popped < total_samples && _queue.dequeue(sample))
             temp[popped++] = sample;
         
-        std::vector<float> existing_data(total_samples, 0.0f);
-        std::ranges::copy(convert_to_float<audio_type>(std::span{output_buffer, total_samples}), existing_data.begin());
-        for (size_t i = 0; i < total_samples; ++i)
-            existing_data[i] += temp[i];
+        auto[to_float, from_float] = make_audio_converters<audio_type>();
+        auto mixed = std::span{output_buffer, total_samples}
+            | std::views::transform(to_float)
+            | std::views::zip(temp | std::views::take(popped))
+            | std::views::transform(
+                [](auto pair)
+                { 
+                    auto[first, second] = pair; 
+                    return from_float(std::clamp(first + second, -1.0f, 1.0f));
+                });
 
-        for (float& s : existing_data)
-            s = std::clamp(s, -1.0f, 1.0f);
-
-        auto converted = convert_from_float<audio_type>(existing_data);
-
-        std::ranges::copy(converted, output_buffer);
+        std::ranges::copy(mixed, output_buffer);
 
         return popped == total_samples;
     }

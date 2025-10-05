@@ -58,50 +58,68 @@ struct audio_ctx
 };
 
 /**
- * @brief Tool functions to convert all input into float type(libsamplerate's resample method takes float* )
- * 
- * @param input input sequence
- * @return std::vector<float> data converted to float
+ * @brief Creates type-specific conversion functions between audio_type and normalized float samples.
+ *
+ * This function returns a pair of callable objects (lambdas) that perform:
+ * - **to_float**: converts a sample of type audio_type to a normalized float value in [-1.0, 1.0].
+ * - **from_float**: converts a normalized float sample back to the target audio_type, applying proper scaling and clamping.
+ *
+ * These converters are designed to be lightweight, stateless, and compatible with C++ ranges pipelines.
+ *
+ * @tparam audio_type  The underlying audio sample type (e.g., int16_t, float, double, uint8_t, etc.)
+ * @return constexpr auto  A pair { to_float, from_float } of conversion lambdas.
+ *
+ * @note Both lambdas are guaranteed to be trivially copyable and captureless, 
+*        making them safe for use in parallel algorithms and range-based transformations.
+ *       
  */
-template <audio_sample_type audio_type>
-auto convert_to_float(std::span<const audio_type> input) 
--> std::vector<float> 
-{
-    std::vector<float> output(input.size());
-    if constexpr (std::same_as<audio_type, float>) 
-        std::ranges::copy(input, output.begin());
-    else if constexpr (std::same_as<audio_type, double>)
-        std::ranges::transform(input, output.begin(), [](double  s){ return static_cast<float>(std::clamp(s, -1.0, 1.0)); });
-    else if constexpr (std::same_as<audio_type, int16_t>) 
-        std::ranges::transform(input, output.begin(), [](int16_t s){ return static_cast<float>(s) / 32768.0f; });
-    else if constexpr (std::same_as<audio_type, int32_t>) 
-        std::ranges::transform(input, output.begin(), [](int32_t s){ return static_cast<float>(s) / 2147483648.0f; });
-    else if constexpr (std::same_as<audio_type, uint8_t>) 
-        std::ranges::transform(input, output.begin(), [](uint8_t s){ return (static_cast<float>(s) - 128.0f) / 128.0f; });
-    return output;
-}
 
-/**
- * @brief Tool functions to convert internal float type to another audio type(for output)
- * 
- * @tparam audio_type 
- * @param input 
- * @return std::vector<audio_type> 
- */
 template <audio_sample_type audio_type>
-auto convert_from_float(std::span<const float> input)
-    -> std::vector<audio_type>
+constexpr auto make_audio_converters()
 {
-    std::vector<audio_type> output(input.size());
+
     if constexpr (std::same_as<audio_type, float>)
-        std::ranges::copy(input, output.begin());
+    {
+        return std::pair
+        {
+            [](float s) { return s; },
+            [](float s) { return s; }
+        };
+    }
     else if constexpr (std::same_as<audio_type, double>)
-        std::ranges::transform(input, output.begin(), [](float s) { return static_cast<double >(std::clamp(s, -1.0f, 1.0f)); });
+    {
+        return std::pair
+        {
+            [](double s) { return static_cast<float>(clamp(s, -1.0, 1.0)); },
+            [](float  s) { return static_cast<double>(clamp(s, -1.0f, 1.0f)); }
+        };
+    }
     else if constexpr (std::same_as<audio_type, int16_t>)
-        std::ranges::transform(input, output.begin(), [](float s) { return static_cast<int16_t>(std::clamp(s, -1.0f, 1.0f) * 32767.0f); });
+    {
+        return std::pair
+        {
+            [](int16_t s) { return static_cast<float>(s) / 32768.0f; },
+            [](float   s) { return static_cast<int16_t>(clamp(s, -1.0f, 1.0f) * 32767.0f); }
+        };
+    }
     else if constexpr (std::same_as<audio_type, int32_t>)
-        std::ranges::transform(input, output.begin(), [](float s) { return static_cast<int32_t>(std::clamp(s, -1.0f, 1.0f) * 2147483647.0f); });
+    {
+        return std::pair
+        {
+            [](int32_t s) { return static_cast<float>(s) / 2147483648.0f; },
+            [](float   s) { return static_cast<int32_t>(clamp(s, -1.0f, 1.0f) * 2147483647.0f); }
+        };
+    }
     else if constexpr (std::same_as<audio_type, uint8_t>)
-        std::ranges::transform(input, output.begin(), [](float s) { return static_cast<uint8_t>(std::clamp(s, -1.0f, 1.0f) * 128.0f + 128.0f); });
-    return output;
+    {
+        return std::pair
+        {
+            [](uint8_t s) { return (static_cast<float>(s) - 128.0f) / 128.0f; },
+            [](float   s) { return static_cast<uint8_t>(clamp(s, -1.0f, 1.0f) * 128.0f + 128.0f); }
+        };
+    }
+    else
+    {
+        static_assert(!sizeof(audio_type), "Unsupported type");
+    }
 }
