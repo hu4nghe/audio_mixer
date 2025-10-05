@@ -1,5 +1,5 @@
 /**
- * @file audio_queue.cpp
+ * @file audio_queue.h
  * @author  ()
  * @brief 
  * @version 0.1
@@ -42,7 +42,7 @@ public :
      * @param user_expected_ctx User expected output audio context.
      * @param user_expected_lat_ms User expected queue capacity (in latency, ms)
      */
-    audio_queue(audio_ctx user_expected_ctx, size_t user_expected_lat_ms) 
+    audio_queue(audio_ctx user_expected_ctx, size_t user_expected_lat_ms = 200) 
         :   _queue(user_expected_ctx._channel_num * user_expected_lat_ms / 1000),
             _expected_context(user_expected_ctx) {}
     
