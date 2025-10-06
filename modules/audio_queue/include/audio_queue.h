@@ -21,15 +21,15 @@ template <audio_sample_type audio_type>
 class audio_queue
 {
     static constexpr auto default_latency_ms = 200;
-
-    lockfree::queue<audio_type> _queue;
-    audio_ctx                   _expected_context;
+    
+    audio_ctx              _expected_context;
+    lockfree::queue<float> _queue;
 public :
     /**
      * @brief Default Constructor : 44.1 KHz, Stereo, Capacity for 200 ms
      * 
      */
-    audio_queue() : _queue(_expected_context._channel_num * default_latency_ms) {}
+    audio_queue() : _queue(_expected_context._channel_num * std::to_underlying(_expected_context._sample_rate) * default_latency_ms / 1000) {}
     
     /**
      * @brief Construct a queue with user expected audio context and latence.
@@ -38,7 +38,7 @@ public :
      * @param user_expected_lat_ms User expected queue capacity (in latency, ms)
      */
     audio_queue(audio_ctx user_expected_ctx, size_t user_expected_lat_ms = 200) 
-        :   _queue(user_expected_ctx._channel_num * user_expected_lat_ms / 1000),
+        :   _queue(user_expected_ctx._channel_num * std::to_underlying(_expected_context._sample_rate) * user_expected_lat_ms / 1000),
             _expected_context(user_expected_ctx) {}
     
     /* Copy or move a queue is not allowed */
@@ -58,7 +58,11 @@ public :
     {
         // Converte all sample into float format.
         const uint8_t input_channels = input_context._channel_num;
-        auto input_data_float = convert_to_float<audio_type>(std::span{input_data, input_frame * input_channels});
+        
+        auto [to_float, _] = make_audio_converters<audio_type>();
+        auto input_data_float = std::span{input_data, input_frame * input_channels}
+            | std::views::transform(to_float)
+            | std::ranges::to<std::vector<float>>();
         
         // Buffer for possible resample operation.
         std::vector<float> temp; 
@@ -121,36 +125,39 @@ public :
             }
         }
 
-        const auto& final_result = output_audio.empty() ? temp : output_audio;
         // Push audio data into audio queue
-        for (const auto sample : final_result)
-            _queue.enqueue(sample);
+        size_t drops = 0;
+        for (const auto sample : output_audio.empty() ? temp : output_audio) 
+            if (!_queue.enqueue(sample)) 
+                drops++;
 
-        return true;
+        if (drops) 
+        {
+            std::println(stderr, "push_audio: dropped {} samples (queue full?)\n", drops);
+            return false;
+        }
+        else
+            return true;
     }
     
     bool pop_audio(const audio_ctx& output_ctx, audio_type* output_buffer, std::size_t frame_count)
     {
         const size_t total_samples = frame_count * output_ctx._channel_num;
 
-        std::vector<float> temp(total_samples, 0.0f);
+        auto [to_float, from_float] = make_audio_converters<audio_type>();
+
+        std::vector<float> output_as_float(total_samples);
+        std::ranges::transform( std::span{output_buffer, total_samples}, output_as_float.begin(), to_float);
+
         size_t popped = 0;
         float sample;
-        while (popped < total_samples && _queue.dequeue(sample))
-            temp[popped++] = sample;
-        
-        auto[to_float, from_float] = make_audio_converters<audio_type>();
-        auto mixed = std::span{output_buffer, total_samples}
-            | std::views::transform(to_float)
-            | std::views::zip(temp | std::views::take(popped))
-            | std::views::transform(
-                [](auto pair)
-                { 
-                    auto[first, second] = pair; 
-                    return from_float(std::clamp(first + second, -1.0f, 1.0f));
-                });
+        while (popped < total_samples && _queue.dequeue(sample)) 
+        {
+            output_as_float[popped] = std::clamp(output_as_float[popped++] + sample, -1.0f, 1.0f);
+            ++popped;
+        }
 
-        std::ranges::copy(mixed, output_buffer);
+        std::ranges::transform(output_as_float, output_buffer, from_float);
 
         return popped == total_samples;
     }

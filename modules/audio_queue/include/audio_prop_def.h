@@ -13,7 +13,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <optional>
-#include <span>
 #include <utility>
 
 #include "channel.h"
@@ -90,8 +89,8 @@ constexpr auto make_audio_converters()
     {
         return std::pair
         {
-            [](double s) { return static_cast<float>(clamp(s, -1.0, 1.0)); },
-            [](float  s) { return static_cast<double>(clamp(s, -1.0f, 1.0f)); }
+            [](double s) { return static_cast<float>(std::clamp(s, -1.0, 1.0)); },
+            [](float  s) { return static_cast<double>(std::clamp(s, -1.0f, 1.0f)); }
         };
     }
     else if constexpr (std::same_as<audio_type, int16_t>)
@@ -99,7 +98,7 @@ constexpr auto make_audio_converters()
         return std::pair
         {
             [](int16_t s) { return static_cast<float>(s) / 32768.0f; },
-            [](float   s) { return static_cast<int16_t>(clamp(s, -1.0f, 1.0f) * 32767.0f); }
+            [](float   s) { return static_cast<int16_t>(std::clamp(s, -1.0f, 1.0f) * 32767.0f); }
         };
     }
     else if constexpr (std::same_as<audio_type, int32_t>)
@@ -107,7 +106,7 @@ constexpr auto make_audio_converters()
         return std::pair
         {
             [](int32_t s) { return static_cast<float>(s) / 2147483648.0f; },
-            [](float   s) { return static_cast<int32_t>(clamp(s, -1.0f, 1.0f) * 2147483647.0f); }
+            [](float   s) { return static_cast<int32_t>(std::clamp(s, -1.0f, 1.0f) * 2147483647.0f); }
         };
     }
     else if constexpr (std::same_as<audio_type, uint8_t>)
@@ -115,7 +114,7 @@ constexpr auto make_audio_converters()
         return std::pair
         {
             [](uint8_t s) { return (static_cast<float>(s) - 128.0f) / 128.0f; },
-            [](float   s) { return static_cast<uint8_t>(clamp(s, -1.0f, 1.0f) * 128.0f + 128.0f); }
+            [](float   s) { return static_cast<uint8_t>(std::clamp(s, -1.0f, 1.0f) * 128.0f + 128.0f); }
         };
     }
     else
