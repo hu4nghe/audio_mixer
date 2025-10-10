@@ -38,8 +38,8 @@ public :
      * @param user_expected_lat_ms User expected queue capacity (in latency, ms)
      */
     audio_queue(audio_ctx user_expected_ctx, size_t user_expected_lat_ms = 200) 
-        :   _queue(user_expected_ctx._channel_num * std::to_underlying(_expected_context._sample_rate) * user_expected_lat_ms / 1000),
-            _expected_context(user_expected_ctx) {}
+        :   _expected_context(user_expected_ctx),
+            _queue(user_expected_ctx._channel_num * std::to_underlying(user_expected_ctx._sample_rate) * user_expected_lat_ms / 1000) {}
     
     /* Copy or move a queue is not allowed */
     audio_queue(const audio_queue&) = delete;
@@ -142,19 +142,25 @@ public :
     
     bool pop_audio(const audio_ctx& output_ctx, audio_type* output_buffer, std::size_t frame_count)
     {
-        const size_t total_samples = frame_count * output_ctx._channel_num;
+        const size_t total_samples = frame_count * _expected_context._channel_num;
 
         auto [to_float, from_float] = make_audio_converters<audio_type>();
 
         std::vector<float> output_as_float(total_samples);
-        std::ranges::transform( std::span{output_buffer, total_samples}, output_as_float.begin(), to_float);
+       
+        std::ranges::transform(std::span{output_buffer, total_samples}, output_as_float.begin(), to_float);
 
         size_t popped = 0;
         float sample;
         while (popped < total_samples && _queue.dequeue(sample)) 
-        {
-            output_as_float[popped] = std::clamp(output_as_float[popped++] + sample, -1.0f, 1.0f);
+        {            
+            output_as_float[popped] = std::clamp(output_as_float[popped] + sample, -1.0f, 1.0f);
             ++popped;
+        }
+        if (output_ctx._channel_num != _expected_context._channel_num || output_ctx._sample_rate != _expected_context._sample_rate)
+        {
+            std::println(stderr, "pop_audio: output_ctx must match _expected_context");
+            return false;
         }
 
         std::ranges::transform(output_as_float, output_buffer, from_float);
