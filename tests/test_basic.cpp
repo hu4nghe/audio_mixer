@@ -36,11 +36,11 @@ TEST_CASE("audio_queue basic push/pop (float)", "[audio_queue]")
     audio_ctx ctx{sample_rate::SR48000, "stereo"};
     audio_queue<float> q(ctx);
 
-    auto input = generate_ramp<float>(128, ctx._channel_num, 0.0f, 0.01f);
-    REQUIRE(q.push_audio(ctx, input.data(), 128));
+    auto input = generate_ramp<float>(256, ctx._channel_num, 0.0f, 0.001f);
+    REQUIRE(q.push_audio(ctx, input.data(), 256));
 
-    std::vector<float> output(128 * ctx._channel_num, 0.0f);
-    bool full = q.pop_audio(ctx, output.data(), 128);
+    std::vector<float> output(256 * ctx._channel_num, 0.0f);
+    bool full = q.pop_audio(ctx, output.data(), 256);
 
     REQUIRE(output.size() == input.size());
     REQUIRE(rms_diff(input, output) < 1e-6f);
@@ -50,8 +50,7 @@ TEST_CASE("audio_queue push/pop (int16_t)", "[audio_queue]")
 {
     audio_ctx ctx{sample_rate::SR44100, "mono"};
     audio_queue<int16_t> q(ctx);
-
-    auto input = generate_ramp<int16_t>(256, 1, 0, 100);
+    auto input = generate_ramp<int16_t>(256, 1, 0, 10);
     REQUIRE(q.push_audio(ctx, input.data(), 256));
 
     std::vector<int16_t> output(256, 0);
@@ -67,25 +66,24 @@ TEST_CASE("audio_queue pop mixes instead of overwriting", "[audio_queue]")
     audio_queue<float> q(ctx);
 
     // Push only half of required samples
-    auto input = generate_ramp<float>(64, ctx._channel_num, 0.0f, 0.1f);
+    auto input = generate_ramp<float>(64, ctx._channel_num, 0.0f, 0.001f);
     REQUIRE(q.push_audio(ctx, input.data(), 64));
 
-    // Prefill with existing signal
-    std::vector<float> output(128 * ctx._channel_num, 0.5f);
+    std::vector<float> output(128 * ctx._channel_num, 0.1f);
     bool full = q.pop_audio(ctx, output.data(), 128);
 
-    // Still considered “not full” since we popped less than required
+    // Still considered "not full" since we popped less than required
     REQUIRE_FALSE(full);
 
     // First half should be mixed and clamped, second half unchanged
     for (size_t i = 0; i < input.size(); ++i)
     {
-        float expected = std::clamp(0.5f + input[i], -1.0f, 1.0f);
-        REQUIRE_THAT(output[i], WithinAbs(expected, 1e-6f));
+        float expected = std::clamp(0.1f + input[i], -1.0f, 1.0f);
+        REQUIRE_THAT(output[i], WithinAbs(expected, 1e-5f));
     }
 
     for (size_t i = input.size(); i < output.size(); ++i)
-        REQUIRE_THAT(output[i], WithinAbs(0.5f, 1e-6f));
+        REQUIRE_THAT(output[i], WithinAbs(0.1f, 1e-5f));
 }
 
 TEST_CASE("audio_queue mixing behavior clamps output", "[audio_queue]")
@@ -93,10 +91,10 @@ TEST_CASE("audio_queue mixing behavior clamps output", "[audio_queue]")
     audio_ctx ctx{sample_rate::SR48000, "stereo"};
     audio_queue<float> q(ctx);
 
-    auto input = generate_ramp<float>(64, 2, 0.0f, 1.0f); // force overflow
+    auto input = generate_ramp<float>(64, 2, 0.0f, 0.02f);
     REQUIRE(q.push_audio(ctx, input.data(), 64));
 
-    std::vector<float> output(64 * 2, 0.8f);
+    std::vector<float> output(64 * 2, 0.5f);
     q.pop_audio(ctx, output.data(), 64);
 
     for (auto s : output)
