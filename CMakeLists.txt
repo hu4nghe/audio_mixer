@@ -4,6 +4,13 @@ project(audio_mixer
     VERSION 0.1
     DESCRIPTION "A MPMC audio mixer"
 )
+
+if(WIN32)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY 
+    "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL" 
+    CACHE STRING "MSVC runtime library")
+endif()
+
 include(FetchContent)
 #add_subdirectory(modules/audio_mixer)
 add_subdirectory(modules/audio_queue)
