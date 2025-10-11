@@ -17,8 +17,8 @@
 
 #include "channel.h"
 
-template <class input_type>
-concept audio_sample_type = std::integral<input_type> || std::floating_point<input_type>;
+template <class InputType>
+concept audio_sample_type = std::integral<InputType> || std::floating_point<InputType>;
 
 enum class sample_rate : std::uint32_t 
 {
@@ -32,27 +32,27 @@ enum class sample_rate : std::uint32_t
 
 struct audio_ctx
 {
-    sample_rate     _sample_rate = sample_rate::SR44100;
-    channel_layout  _channel_num = channel_layout::stereo;
+    sample_rate     m_sample_rate = sample_rate::SR44100;
+    channel_layout  m_channel_num = channel_layout::Stereo;
     
-    auto need_conversion(const audio_ctx& other) const
-    -> std::optional<channel_layout::matrix_type> 
+    [[nodiscard]] auto need_conversion(const audio_ctx& other) const
+    -> std::optional<channel_layout::MatrixType> 
     {
-        if(_channel_num != other._channel_num)
-            // Convert from other(usually input) to me(usually expected)
-            return other._channel_num.matrix_to(_channel_num);
-        else 
-            return std::nullopt;
+        
+        // Convert from other(usually input) to me(usually expected)
+        if(m_channel_num != other.m_channel_num)
+            return other.m_channel_num.matrix_to(m_channel_num);
+    
+        return std::nullopt;
     }
 
-    auto need_resample(const audio_ctx& other) const
+    [[nodiscard]] auto need_resample(const audio_ctx& other) const
     -> std::optional<double>
     {
-        if(_sample_rate != other._sample_rate)
-            // Convert from other(usually input) to me(usually expected)
-            return std::to_underlying(_sample_rate) / std::to_underlying(other._sample_rate);
-        else
-            return std::nullopt;
+        // Convert from other(usually input) to me(usually expected)
+        return m_sample_rate != other.m_sample_rate ? 
+                std::make_optional(std::to_underlying(m_sample_rate) / std::to_underlying(other.m_sample_rate)): 
+                std::nullopt;
     }
 };
 
@@ -72,53 +72,37 @@ struct audio_ctx
 *        making them safe for use in parallel algorithms and range-based transformations.
  *       
  */
-
-template <audio_sample_type audio_type>
+template <audio_sample_type AudioType>
 constexpr auto make_audio_converters()
 {
+    if constexpr (std::is_floating_point_v<AudioType>)
+    {
+        return std::pair
+        {
+            [](AudioType val) { return val; },
+            [](float val) { return static_cast<AudioType>(val); }
+        };
+    }
+    else if constexpr (std::is_integral_v<AudioType>)
+    {
+        using Limits = std::numeric_limits<AudioType>;
+        constexpr float max_float = 1.0F;
 
-    if constexpr (std::same_as<audio_type, float>)
-    {
-        return std::pair
+        if constexpr (std::is_signed_v<AudioType>)
         {
-            [](float s) { return s; },
-            [](float s) { return s; }
-        };
-    }
-    else if constexpr (std::same_as<audio_type, double>)
-    {
-        return std::pair
+            return std::pair
+            {
+                [](AudioType val) { return static_cast<float>(val) / Limits::max(); },
+                [](float val) { return static_cast<AudioType>(std::clamp(val, -max_float, max_float) * Limits::max()); }
+            };
+        }
+        else // unsigned
         {
-            [](double s) { return static_cast<float>(std::clamp(s, -1.0, 1.0)); },
-            [](float  s) { return static_cast<double>(std::clamp(s, -1.0f, 1.0f)); }
-        };
-    }
-    else if constexpr (std::same_as<audio_type, int16_t>)
-    {
-        return std::pair
-        {
-            [](int16_t s) { return static_cast<float>(s) / 32768.0f; },
-            [](float   s) { return static_cast<int16_t>(std::clamp(s, -1.0f, 1.0f) * 32767.0f); }
-        };
-    }
-    else if constexpr (std::same_as<audio_type, int32_t>)
-    {
-        return std::pair
-        {
-            [](int32_t s) { return static_cast<float>(s) / 2147483648.0f; },
-            [](float   s) { return static_cast<int32_t>(std::clamp(s, -1.0f, 1.0f) * 2147483647.0f); }
-        };
-    }
-    else if constexpr (std::same_as<audio_type, uint8_t>)
-    {
-        return std::pair
-        {
-            [](uint8_t s) { return (static_cast<float>(s) - 128.0f) / 128.0f; },
-            [](float   s) { return static_cast<uint8_t>(std::clamp(s, -1.0f, 1.0f) * 128.0f + 128.0f); }
-        };
-    }
-    else
-    {
-        static_assert(!sizeof(audio_type), "Unsupported type");
+            return std::pair
+            {
+                [](AudioType val) { return (static_cast<float>(val) - Limits::max() / 2.0F) / (Limits::max() / 2.0F); },
+                [](float val) { return static_cast<AudioType>((std::clamp(val, -max_float, max_float) * (Limits::max() / 2.0F)) + (Limits::max() / 2.0F)); }
+            };
+        }
     }
 }

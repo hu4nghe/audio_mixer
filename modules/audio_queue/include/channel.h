@@ -18,60 +18,69 @@
 class channel_layout 
 {
 public:
-    enum value : std::uint8_t 
+
+    enum value : uint8_t 
     {
-        mono            = 1,  // 1.0
-        stereo          = 2,  // 2.0
-        five_point_one  = 6,  // 5.1
-        seven_point_one = 8   // 7.1
+        Mono          = 1,  // 1.0
+        Stereo        = 2,  // 2.0
+        FivePointOne  = 6,  // 5.1
+        SevenPointOne = 8   // 7.1
     };
 
-    constexpr channel_layout() = default;
-    constexpr channel_layout(value v) : value(v) {}
+    using MatrixType = std::vector<std::vector<float>>;
+    
+private:
+
+    value m_value = Stereo;
+
+public :
 
     /**
-     * @brief Construct from a string_view
+     * @brief Construct from a enum value.
+     * @param value Enum value for construction
+     */
+    constexpr channel_layout(value val) : m_value(val) {}
+
+    /**
+     * @brief Construct from a string_view.
      * 
      * @param name the channel layout name, available names :
      * 
-     *      mono
-     *      stereo
+     *      Mono
+     *      Stereo
      *      5.1
      *      7.1
-     *
      */
-    channel_layout(const std::string_view name);
-    channel_layout(const char* name) : channel_layout(std::string_view{name}) {}
-
-    /**
-     * @brief Convert enum to string. 
-     * 
-     * @return const char* const Name of channel layout, see the constrctor above.
-     */
-    auto to_str() -> const char* const;
-
-    // Mathematical operation & switch support
-    constexpr operator value() const { return value; }
+    channel_layout(std::string_view name);
 
     // Comparaison
-    constexpr bool operator==(channel_layout other) const { return value == other.value; }
-    constexpr bool operator!=(channel_layout other) const { return value != other.value; }
+    constexpr bool operator==(channel_layout rhs) const { return m_value == rhs.m_value; }
+    constexpr bool operator==(value rhs)          const { return m_value == rhs; }
+    constexpr bool operator!=(channel_layout rhs) const { return m_value != rhs.m_value; }
+    constexpr bool operator!=(value rhs)          const { return m_value != rhs; }
 
-    // Get channel count
-    constexpr auto channels() const { return static_cast<size_t>(value); }
 
+    /**
+     * @brief Value operator, return number of channel.
+     * 
+     * @return value 
+     */
+    constexpr operator value() const { return m_value; }
 
-    using matrix_type = std::vector<std::vector<float>>;
     /**
      * @brief Matrix for channel conversion
      * 
      * @param input The input channel layout.
      * @return std::vector<std::vector<float>> The matrix to use 
      */
-    auto matrix_to(channel_layout target) const -> matrix_type;
+    [[nodiscard]] auto matrix_to(channel_layout target) const -> MatrixType; 
 
-    
+    /**
+     * @brief Return the value name in string.
+     * 
+     * @return const char* const Name of channel layout, see the constrctor above.
+     */
+    [[nodiscard]] auto to_str() -> const char*;
 
-private:
-    value value = stereo;
+
 };
