@@ -1,1 +1,5 @@
 **/build
+
+#clang
+.clangd
+.clang-tidy
