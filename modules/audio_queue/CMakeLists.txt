@@ -10,34 +10,23 @@ FetchContent_Declare(
 
 
 # ----------------- Dependency : libsamplerate -----------------
+set(CMAKE_POLICY_VERSION_MINIMUM 3.10)
 FetchContent_Declare(
     libsamplerate
     GIT_REPOSITORY https://github.com/libsndfile/libsamplerate.git
     GIT_TAG 0.2.2
 )
 
-set(USE_FETCHCONTENT FALSE)
-set(CMAKE_POLICY_VERSION_MINIMUM 3.10)
-
 if(WIN32)
-    set(USE_FETCHCONTENT TRUE)
-else()
-    find_package(PkgConfig)
-    if(PkgConfig_FOUND)
-        pkg_check_modules(SAMPLERATE QUIET samplerate)
-    endif()
-
-    if(NOT SAMPLERATE_FOUND)
-        set(USE_FETCHCONTENT TRUE)
-    endif()
-endif()
-
-if(USE_FETCHCONTENT)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY 
+    "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL" 
+    CACHE STRING "MSVC runtime library")
     FetchContent_MakeAvailable(libsamplerate)
-    set(SAMPLERATE_TARGET samplerate)
 else()
-    include_directories(${SAMPLERATE_INCLUDE_DIRS})
-    set(SAMPLERATE_TARGET ${SAMPLERATE_LIBRARIES})
+    # Supress libsamplerate warning
+    set(CMAKE_WARN_DEPRECATED OFF CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(libsamplerate)
+    set(CMAKE_WARN_DEPRECATED ON CACHE BOOL "" FORCE)
 endif()
 
 # ----------------- Library -----------------
@@ -58,11 +47,10 @@ target_include_directories(audio_queue
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>
-        ${SAMPLERATE_INCLUDE_DIRS}
 )
 
 target_link_libraries(audio_queue
     PUBLIC
-        ${SAMPLERATE_TARGET} #linking to libsamplerate
+        samplerate
         lockfree_queue
 )
