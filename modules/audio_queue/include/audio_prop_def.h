@@ -15,51 +15,61 @@
 
 #include "channel.h"
 
-template <class InputType>
-concept audio_sample_type = std::integral<InputType> || std::floating_point<InputType>;
+template<class InputType>
+concept AudioSampleType = std::integral<InputType> || std::floating_point<InputType>;
 
-enum class sample_rate : std::uint32_t 
+enum class sample_rate : std::uint32_t
 {
-    SR44100  = 44100,
-    SR48000  = 48000,
-    SR88200  = 88200,
-    SR96000  = 96000,
-    SR176400 = 176400,
-    SR192000 = 192000
+	SR44100	 = 44100,
+	SR48000	 = 48000,
+	SR88200	 = 88200,
+	SR96000	 = 96000,
+	SR176400 = 176400,
+	SR192000 = 192000
 };
 
-struct audio_ctx
+struct audio_context
 {
-    sample_rate     m_sample_rate = sample_rate::SR44100;
-    channel_layout  m_channel_num = channel_layout::Stereo;
-    
-    audio_ctx(sample_rate s_rate, std::string_view channel) : m_sample_rate(s_rate), m_channel_num(channel) {}
+	sample_rate	   m_sample_rate = sample_rate::SR44100;
+	channel_layout m_channel_num = channel_layout::Stereo;
 
-    // Comparaison
-    bool operator==(const audio_ctx& rhs) const { return m_channel_num == rhs.m_channel_num && m_sample_rate == rhs.m_sample_rate; }
-    bool operator!=(const audio_ctx& rhs) const { return m_channel_num != rhs.m_channel_num || m_sample_rate != rhs.m_sample_rate; }
+	audio_context(sample_rate s_rate, std::string_view channel)
+		: m_sample_rate(s_rate),
+		  m_channel_num(channel)
+	{}
 
-    [[nodiscard]] auto 
-    need_conversion(const audio_ctx& other) const
-    -> std::optional<channel_layout::MatrixType> 
-    {
-        
-        // Convert from other(usually input) to me(usually expected)
-        if(m_channel_num != other.m_channel_num)
-            return other.m_channel_num.matrix_to(m_channel_num);
-    
-        return std::nullopt;
-    }
+	// Comparaison
+	bool operator==(const audio_context& rhs) const = default;
+	bool operator!=(const audio_context& rhs) const = default;
 
-    [[nodiscard]] auto 
-    need_resample(const audio_ctx& other) const
-    -> std::optional<double>
-    {
-        // Convert from other(usually input) to me(usually expected)
-        return m_sample_rate != other.m_sample_rate ? 
-                std::make_optional(std::to_underlying(m_sample_rate) / std::to_underlying(other.m_sample_rate)): 
-                std::nullopt;
-    }
+	/**
+     * @brief Check if input need a channel mapping to fit current layout.
+     * 
+     * @param other input context
+     * @return std::optional<channel_layout::MatrixType> Posible mapping channel
+     */
+	[[nodiscard]] auto need_conversion(const audio_context& other) const
+		-> std::optional<channel_layout::MatrixType>
+	{
+		// Convert from other(usually input) to me(usually expected)
+		if (m_channel_num != other.m_channel_num)
+			return other.m_channel_num.matrix_to(m_channel_num);
+
+		return std::nullopt;
+	}
+
+	/**
+     * @brief Check if input need a resample to fit current sample rate.
+     * 
+     * @param other input context
+     * @return std::optional<double> Possible resample ratio
+     */
+	[[nodiscard]] auto need_resample(const audio_context& other) const
+		-> std::optional<double>
+	{
+		// Convert from other(usually input) to me(usually expected)
+		return m_sample_rate != other.m_sample_rate ? std::make_optional(std::to_underlying(m_sample_rate) / std::to_underlying(other.m_sample_rate)) : std::nullopt;
+	}
 };
 
 /**
@@ -78,40 +88,34 @@ struct audio_ctx
  *       making them safe for use in parallel algorithms and range-based transformations.
  *       
  */
-template <audio_sample_type AudioType>
-constexpr auto 
+template<AudioSampleType AudioType>
+constexpr auto
 make_audio_converters()
 {
-    if constexpr (std::is_floating_point_v<AudioType>)
-        return std::pair
-        {
-            [](AudioType val) { return val; },
-            [](float val) { return static_cast<AudioType>(val); }
-        };
-    
-    else if constexpr (std::is_integral_v<AudioType>)
-    {
-        using Limits = std::numeric_limits<AudioType>;
-        constexpr float max_float = 1.0F;
-        
-        if constexpr (std::is_signed_v<AudioType>)
-        {
-            constexpr float scale = -static_cast<float>(Limits::min());
-            return std::pair
-            {
-                [](AudioType val) { return static_cast<float>(val) / scale; },
-                [=](float val) { return static_cast<AudioType>(std::clamp(val, -max_float, max_float) * scale); }
-            };
-        }
-        else // unsigned
-        {
-            constexpr float half_range = static_cast<float>(Limits::max()) / 2.0F;
-            constexpr float offset = half_range + 0.5F;
-            return std::pair
-            {
-                [](AudioType val) { return (static_cast<float>(val) - offset) / half_range; },
-                [=](float val) { return static_cast<AudioType>((std::clamp(val, -max_float, max_float) * half_range) + offset); }
-            };
-        }
-    }
+	if constexpr (std::is_floating_point_v<AudioType>)
+		return std::pair{
+			[](AudioType val) { return val; },
+			[](float val) { return static_cast<AudioType>(val); }};
+
+	else if constexpr (std::is_integral_v<AudioType>)
+	{
+		using Limits			  = std::numeric_limits<AudioType>;
+		constexpr float max_float = 1.0F;
+
+		if constexpr (std::is_signed_v<AudioType>)
+		{
+			constexpr float scale = -static_cast<float>(Limits::min());
+			return std::pair{
+				[](AudioType val) { return static_cast<float>(val) / scale; },
+				[=](float val) { return static_cast<AudioType>(std::clamp(val, -max_float, max_float) * scale); }};
+		}
+		else // unsigned
+		{
+			constexpr float half_range = static_cast<float>(Limits::max()) / 2.0F;
+			constexpr float offset	   = half_range + 0.5F;
+			return std::pair{
+				[](AudioType val) { return (static_cast<float>(val) - offset) / half_range; },
+				[=](float val) { return static_cast<AudioType>((std::clamp(val, -max_float, max_float) * half_range) + offset); }};
+		}
+	}
 }

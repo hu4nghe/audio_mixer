@@ -9,6 +9,7 @@ include(FetchContent)
 #add_subdirectory(modules/audio_mixer)
 add_subdirectory(modules/audio_queue)
 add_subdirectory(modules/audio_file)
+add_subdirectory(modules/input_module_base)
 
 include(CTest)
 option(AUDIOMIXER_BUILD_TESTS "Build AudioMixer's own tests" ON)
