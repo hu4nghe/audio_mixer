@@ -3,3 +3,4 @@
 #clang
 .clangd
 .clang-tidy
+.clang-format

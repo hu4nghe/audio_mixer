@@ -8,6 +8,7 @@ project(audio_mixer
 include(FetchContent)
 #add_subdirectory(modules/audio_mixer)
 add_subdirectory(modules/audio_queue)
+add_subdirectory(modules/input_module_base)
 add_subdirectory(modules/audio_file)
 
 include(CTest)
