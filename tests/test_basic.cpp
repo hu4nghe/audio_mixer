@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <numeric>
+#include <iostream>
 
 using Catch::Matchers::WithinAbs;
 
@@ -33,13 +34,13 @@ float rms_diff(const std::vector<T> &a, const std::vector<T> &b)
 
 TEST_CASE("audio_queue basic push/pop (float)", "[audio_queue]")
 {
-    audio_ctx ctx{sample_rate::SR48000, "stereo"};
+    audio_ctx ctx{sample_rate::SR48000, "Stereo"};
     audio_queue<float> q(ctx);
 
-    auto input = generate_ramp<float>(256, ctx._channel_num, 0.0f, 0.001f);
+    auto input = generate_ramp<float>(256, ctx.m_channel_num, 0.0f, 0.001f);
     REQUIRE(q.push_audio(ctx, input.data(), 256));
 
-    std::vector<float> output(256 * ctx._channel_num, 0.0f);
+    std::vector<float> output(256 * ctx.m_channel_num, 0.0f);
     bool full = q.pop_audio(ctx, output.data(), 256);
 
     REQUIRE(output.size() == input.size());
@@ -48,7 +49,7 @@ TEST_CASE("audio_queue basic push/pop (float)", "[audio_queue]")
 
 TEST_CASE("audio_queue push/pop (int16_t)", "[audio_queue]")
 {
-    audio_ctx ctx{sample_rate::SR44100, "mono"};
+    audio_ctx ctx{sample_rate::SR44100, "Mono"};
     audio_queue<int16_t> q(ctx);
     auto input = generate_ramp<int16_t>(256, 1, 0, 10);
     REQUIRE(q.push_audio(ctx, input.data(), 256));
@@ -62,14 +63,14 @@ TEST_CASE("audio_queue push/pop (int16_t)", "[audio_queue]")
 
 TEST_CASE("audio_queue pop mixes instead of overwriting", "[audio_queue]")
 {
-    audio_ctx ctx{sample_rate::SR48000, "stereo"};
+    audio_ctx ctx{sample_rate::SR48000, "Stereo"};
     audio_queue<float> q(ctx);
 
     // Push only half of required samples
-    auto input = generate_ramp<float>(64, ctx._channel_num, 0.0f, 0.001f);
+    auto input = generate_ramp<float>(64, ctx.m_channel_num, 0.0f, 0.001f);
     REQUIRE(q.push_audio(ctx, input.data(), 64));
 
-    std::vector<float> output(128 * ctx._channel_num, 0.1f);
+    std::vector<float> output(128 * ctx.m_channel_num, 0.1f);
     bool full = q.pop_audio(ctx, output.data(), 128);
 
     // Still considered "not full" since we popped less than required
@@ -88,7 +89,7 @@ TEST_CASE("audio_queue pop mixes instead of overwriting", "[audio_queue]")
 
 TEST_CASE("audio_queue mixing behavior clamps output", "[audio_queue]")
 {
-    audio_ctx ctx{sample_rate::SR48000, "stereo"};
+    audio_ctx ctx{sample_rate::SR48000, "Stereo"};
     audio_queue<float> q(ctx);
 
     auto input = generate_ramp<float>(64, 2, 0.0f, 0.02f);
@@ -103,7 +104,7 @@ TEST_CASE("audio_queue mixing behavior clamps output", "[audio_queue]")
 
 TEST_CASE("audio_queue round-trip conversion precision", "[audio_queue]")
 {
-    audio_ctx ctx{sample_rate::SR48000, "mono"};
+    audio_ctx ctx{sample_rate::SR48000, "Mono"};
 
     SECTION("int16_t <-> float conversion")
     {
@@ -111,6 +112,11 @@ TEST_CASE("audio_queue round-trip conversion precision", "[audio_queue]")
         int16_t src = 16384;
         float f = to_float(src);
         auto back = from_float(f);
+        
+        std::cout << "src: " << src << '\n';
+        std::cout << "to float: " << f << '\n';
+        std::cout << "back: " << back << '\n';
+        std::cout << "difference: " << std::abs(src - back) << '\n';
         REQUIRE(std::abs(src - back) <= 2);
     }
 

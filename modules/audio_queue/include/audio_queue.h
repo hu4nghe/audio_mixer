@@ -1,33 +1,26 @@
 /**
  * @file audio_queue.h
- * @author  ()
+ * @author  HUANG He (he.hu4ng@outlook.com)
  * @brief 
- * @version 0.1
- * @date 2025-10-03
+ * @version 0.2
+ * @date 2025-10-12
  * 
  * @copyright Copyright (c) 2025
  * 
  */
+#pragma once
+
+#include <numeric>
+#include <ranges>
+#include <print>
 
 #include "lockfree_queue.h"
 #include "audio_prop_def.h"
 #include "samplerate.h"
 
-#include <math.h>
-
-#include <cstddef>
-#include <numeric>
-#include <ranges>
-#include <print>
-
 template <audio_sample_type AudioType>
-class audio_queue
+struct audio_queue
 {
-    static constexpr auto default_latency_ms = 200;
-    
-    audio_ctx              m_expected_context;
-    lockfree::queue<float> m_queue;
-public :
     /**
      * @brief Default Constructor : 44.1 KHz, Stereo, Capacity for 200 ms
      * 
@@ -50,6 +43,10 @@ public :
     audio_queue &operator=(const audio_queue &) = delete;
     audio_queue &operator=(audio_queue &&)      = delete;
 
+    /**
+     * @brief Default destructor.
+     * 
+     */
     ~audio_queue() = default;
 
     /**
@@ -61,7 +58,8 @@ public :
      * @return true Push operation succeeded
      * @return false Push operation failed
      */
-    bool push_audio(const audio_ctx& input_context, AudioType* input_data, std::size_t input_frame)
+    bool 
+    push_audio(const audio_ctx& input_context, AudioType* input_data, std::size_t input_frame)
     {
         // Converte all sample into float format.
         const uint8_t input_channels = input_context.m_channel_num;
@@ -83,6 +81,7 @@ public :
             
             temp.resize(expected_output_frame * input_channels);
 
+            // Resample with libsamplerate.
             int err_code = 0;
             auto* src_state = src_new(SRC_SINC_BEST_QUALITY, input_channels, &err_code);
             if (src_state && (err_code == 0))
@@ -101,13 +100,13 @@ public :
                     std::println(stderr,"libsamplerate error : {}", src_strerror(err_code));
                 else // Resample succeeded, cut the buffer size base on generated frame.
                     temp.resize(static_cast<long>(src_data.output_frames_gen * input_channels));
-                
+
                 src_delete (src_state);
             }
             else // Print error message(src_new failed).
                 std::println(stderr, "libsamplerate error : {}", src_strerror(err_code));
                 
-            if(err_code != 0) // Return false in case of failure.
+            if(err_code != 0)
                 return false;
         }
         else // No need of resample 
@@ -138,7 +137,7 @@ public :
             if (!m_queue.enqueue(sample)) 
                 drops++;
 
-        if (drops != 0U) 
+        if (drops != 0) 
         {
             std::println(stderr, "push_audio: dropped {} samples (queue full?)\n", drops);
             return false;
@@ -147,32 +146,53 @@ public :
         return true;
     }
     
-    bool pop_audio(const audio_ctx& output_ctx, AudioType* output_buffer, std::size_t frame_count)
+    /**
+     * @brief Pop a sequence of audio from the audio queue.
+     * 
+     * @param output_ctx Output buffer context(if it is not the same with the expected context, operation will fail)
+     * @param output_buffer Output buffer array
+     * @param frame_count Output buffer frame count
+     * @return true Pop operation succeeded
+     * @return false Pop operation failed
+     */
+    bool 
+    pop_audio(const audio_ctx& output_ctx, AudioType* output_buffer, std::size_t frame_count)
     {
+        // Verify consistency between output and expectated context
+        if (output_ctx != m_expected_context)
+        {
+            std::println(stderr, "pop_audio : output_ctx must match expected_context");
+            return false;
+        }
+        // Theoretical sample array size
         const size_t total_samples = frame_count * m_expected_context.m_channel_num;
-
-        auto [to_float, from_float] = make_audio_converters<AudioType>();
-
         std::vector<float> output_as_float(total_samples);
-       
+
+        // Convert existing data to float
+        auto [to_float, from_float] = make_audio_converters<AudioType>();
         std::ranges::transform(std::span{output_buffer, total_samples}, output_as_float.begin(), to_float);
 
+        // Try pop from queue
         size_t popped = 0;
         float sample = NAN;
         while (popped < total_samples && m_queue.dequeue(sample)) 
-        {            
+        {
+            // Mixing mode : Add pop element to existing audio data.
             output_as_float[popped] = std::clamp(output_as_float[popped] + sample, -1.0F, 1.0F);
             ++popped;
         }
 
-        if (output_ctx.m_channel_num != m_expected_context.m_channel_num || output_ctx.m_sample_rate != m_expected_context.m_sample_rate)
-        {
-            std::println(stderr, "pop_audio: output_ctx must match m_expected_context");
-            return false;
-        }
-
+        // Convert to original type
         std::ranges::transform(output_as_float, output_buffer, from_float);
 
         return popped == total_samples;
     }
+
+private :
+
+    static constexpr auto default_latency_ms = 200;
+    
+    audio_ctx              m_expected_context;
+    lockfree::queue<float> m_queue;
+
 };

@@ -4,17 +4,18 @@
 
 #include "channel.h"
 
-
 channel_layout::channel_layout(const std::string_view name)
 {
-    if      (name == "mono")   m_value = Mono;
-    else if (name == "stereo") m_value = Stereo;
+    if      (name == "Mono")   m_value = Mono;
+    else if (name == "Stereo") m_value = Stereo;
     else if (name == "5.1")    m_value = FivePointOne;
     else if (name == "7.1")    m_value = SevenPointOne;
     else throw std::invalid_argument(std::format("Unknown channel layout : {}", name));
 }
 
-auto channel_layout::matrix_to(channel_layout target) const -> MatrixType
+auto 
+channel_layout::matrix_to(channel_layout target) const 
+-> MatrixType
 {
     using Value = channel_layout::value;
 
@@ -94,7 +95,9 @@ auto channel_layout::matrix_to(channel_layout target) const -> MatrixType
     return conversion_matrix;
 }
 
-auto channel_layout::to_str() -> const char* 
+auto 
+channel_layout::to_str() 
+-> const char* 
 {
   switch (m_value) 
   {

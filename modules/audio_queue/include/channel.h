@@ -1,24 +1,25 @@
 /**
  * @file channel.h
- * @author  ()
+ * @author  HUANG He (he.hu4ng@outlook.com)
  * @brief 
- * @version 0.1
- * @date 2025-10-03
+ * @version 0.2
+ * @date 2025-10-12
  * 
  * @copyright Copyright (c) 2025
  * 
  */
-
 #pragma once
 
 #include <cstdint>
 #include <vector>
 #include <string_view>
 
-class channel_layout 
+struct channel_layout 
 {
-public:
-
+    /**
+     * @brief Channel layout enum
+     * 
+     */
     enum value : uint8_t 
     {
         Mono          = 1,  // 1.0
@@ -27,13 +28,8 @@ public:
         SevenPointOne = 8   // 7.1
     };
 
+    // Channel mapping matrix type
     using MatrixType = std::vector<std::vector<float>>;
-    
-private:
-
-    value m_value = Stereo;
-
-public :
 
     /**
      * @brief Construct from a enum value.
@@ -59,11 +55,10 @@ public :
     constexpr bool operator!=(channel_layout rhs) const { return m_value != rhs.m_value; }
     constexpr bool operator!=(value rhs)          const { return m_value != rhs; }
 
-
     /**
-     * @brief Value operator, return number of channel.
+     * @brief Value operator, return number of channels.
      * 
-     * @return value 
+     * @return value number of channels
      */
     constexpr operator value() const { return m_value; }
 
@@ -73,14 +68,21 @@ public :
      * @param input The input channel layout.
      * @return std::vector<std::vector<float>> The matrix to use 
      */
-    [[nodiscard]] auto matrix_to(channel_layout target) const -> MatrixType; 
+    [[nodiscard]] auto 
+    matrix_to(channel_layout target) const 
+    -> MatrixType; 
 
     /**
      * @brief Return the value name in string.
      * 
      * @return const char* const Name of channel layout, see the constrctor above.
      */
-    [[nodiscard]] auto to_str() -> const char*;
+    [[nodiscard]] auto 
+    to_str() 
+    -> const char*;
 
+private :
+
+    value m_value = Stereo;
 
 };
