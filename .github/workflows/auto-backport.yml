@@ -1,0 +1,207 @@
+name: Auto backport master -> WIP branches
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  backport:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Detect source branch
+        id: source
+        run: |
+          set -euo pipefail
+          
+          # Extract source WIP branch from commit message (if merged from a WIP branch)
+          SOURCE=$(git log -1 --pretty=%B | grep -Eo 'WIP-[A-Za-z0-9._/-]+' | head -n 1 || true)
+          COMMIT_SHA="${GITHUB_SHA::7}"
+          
+          echo "branch=$SOURCE" >> $GITHUB_OUTPUT
+          echo "commit_sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
+          echo "Detected source branch: ${SOURCE:-<none>}"
+
+      - name: Sync WIP branches
+        id: sync
+        run: |
+          set -euo pipefail
+          
+          SOURCE="${{ steps.source.outputs.branch }}"
+          COMMIT_SHA="${{ steps.source.outputs.commit_sha }}"
+          
+          # Find all remote WIP branches
+          ALL_WIP_BRANCHES=$(git branch -r | sed 's|origin/||' | grep '^WIP-' || true)
+          
+          # Exclude the source branch to avoid syncing back to itself
+          if [[ -n "$SOURCE" ]]; then
+            TARGETS=$(echo "$ALL_WIP_BRANCHES" | grep -v "^${SOURCE}$" || true)
+          else
+            TARGETS="$ALL_WIP_BRANCHES"
+          fi
+          
+          if [[ -z "$TARGETS" ]]; then
+            echo "No target branches found for syncing"
+            exit 0
+          fi
+          
+          echo "Target branches to sync:"
+          echo "$TARGETS"
+          echo ""
+          
+          # Track results
+          rm -f sync_results.txt
+          
+          # Sync each target branch using rebase for linear history
+          for target in $TARGETS; do
+            echo "===================================="
+            echo "Syncing: $target"
+            echo "===================================="
+            
+            # Create a temporary branch for the sync attempt
+            TEMP_BRANCH="sync/master-to-${target//\//-}-${COMMIT_SHA}"
+            
+            # Fetch and checkout target branch
+            git fetch origin "$target:$target" 2>/dev/null || true
+            git checkout -b "$TEMP_BRANCH" "$target"
+            
+            # Attempt rebase onto master for clean linear history
+            echo "Rebasing $target onto master..."
+            if git rebase origin/master; then
+              # Rebase succeeded - push temp branch
+              git push origin "$TEMP_BRANCH"
+              echo "success|$TEMP_BRANCH|$target" >> sync_results.txt
+              echo "Successfully rebased $target"
+            else
+              # Rebase failed - still push the conflicted state for manual resolution
+              echo "Rebase conflicts detected in $target"
+              
+              # Add conflict markers and push
+              git add -A
+              git rebase --continue 2>/dev/null || true
+              
+              # If still in rebase state, abort and create a merge commit instead
+              if git status | grep -q "rebase in progress"; then
+                git rebase --abort
+                # Use merge to preserve the conflict state
+                git merge origin/master --no-commit || true
+              fi
+              
+              git push origin "$TEMP_BRANCH" || true
+              echo "conflict|$TEMP_BRANCH|$target" >> sync_results.txt
+              echo "   Created branch for manual conflict resolution"
+            fi
+            
+            # Return to master branch and cleanup local temp branch
+            git checkout master
+            git branch -D "$TEMP_BRANCH" 2>/dev/null || true
+            echo ""
+          done
+          
+          # Export results for PR creation step
+          if [ -f sync_results.txt ]; then
+            echo "has_results=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_results=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create pull requests
+        if: steps.sync.outputs.has_results == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = 'sync_results.txt';
+            
+            if (!fs.existsSync(path)) {
+              console.log('No sync results found');
+              return;
+            }
+            
+            const lines = fs.readFileSync(path, 'utf8').trim().split('\n').filter(Boolean);
+            const commitSha = '${{ steps.source.outputs.commit_sha }}';
+            const sourceBranch = '${{ steps.source.outputs.branch }}' || 'master';
+            
+            for (const line of lines) {
+              const [status, tempBranch, targetBranch] = line.split('|');
+              
+              let title, body, labels;
+              
+              if (status === 'success') {
+                title = `sync: ${targetBranch} ← master`;
+                body = `Automated sync of master into ${targetBranch}\n\n` +
+                       `Source: ${sourceBranch}\n` +
+                       `Commit: ${commitSha}\n` +
+                       `Branch: ${tempBranch}\n\n` +
+                       `Clean rebase - no conflicts detected.\n` +
+                       `This PR maintains linear history.`;
+                labels = ['auto-sync', 'no-conflicts'];
+              } else {
+                title = `sync [CONFLICTS]: ${targetBranch} ← master`;
+                body = `**Manual conflict resolution required**\n\n` +
+                       `Automated sync of master into ${targetBranch} encountered conflicts.\n\n` +
+                       `Source: ${sourceBranch}\n` +
+                       `Commit: ${commitSha}\n` +
+                       `Branch: ${tempBranch}\n\n` +
+                       `**Next steps:**\n` +
+                       `1. Check out this branch locally: \`git fetch origin ${tempBranch} && git checkout ${tempBranch}\`\n` +
+                       `2. Resolve conflicts manually\n` +
+                       `3. Complete the rebase: \`git rebase --continue\`\n` +
+                       `4. Force push: \`git push origin ${tempBranch} --force-with-lease\`\n` +
+                       `5. Merge this PR once conflicts are resolved`;
+                labels = ['auto-sync', 'conflicts', 'needs-resolution'];
+              }
+              
+              try {
+                const pr = await github.rest.pulls.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: title,
+                  head: tempBranch,
+                  base: targetBranch,
+                  body: body,
+                  maintainer_can_modify: true
+                });
+                
+                // Add labels
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: pr.data.number,
+                  labels: labels
+                });
+                
+                console.log(`Created PR #${pr.data.number}: ${pr.data.html_url}`);
+              } catch (err) {
+                console.log(`Failed to create PR for ${tempBranch} → ${targetBranch}: ${err.message}`);
+              }
+            }
+
+      - name: Summary
+        run: |
+          echo "Auto-sync workflow completed"
+          echo ""
+          if [ -f sync_results.txt ]; then
+            echo "Results:"
+            while IFS='|' read -r status temp_branch target; do
+              if [ "$status" = "success" ]; then
+                echo "$target - Clean sync (PR created)"
+              else
+                echo "$target - Conflicts detected (PR created for manual resolution)"
+              fi
+            done < sync_results.txt
+          else
+            echo "No branches to sync"
+          fi
+          echo ""
+          echo "Check pull requests for details and merge when ready."
