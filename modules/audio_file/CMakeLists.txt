@@ -31,4 +31,5 @@ target_include_directories(audio_file
 target_link_libraries(audio_file
     PUBLIC
         SndFile::sndfile
+        input_module_base
 )
