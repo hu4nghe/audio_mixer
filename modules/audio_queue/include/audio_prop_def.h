@@ -14,19 +14,10 @@
 #include <optional>
 
 #include "channel.h"
+#include "sample_rate.h"
 
 template <class InputType>
 concept audio_sample_type = std::integral<InputType> || std::floating_point<InputType>;
-
-enum class sample_rate : std::uint32_t 
-{
-    SR44100  = 44100,
-    SR48000  = 48000,
-    SR88200  = 88200,
-    SR96000  = 96000,
-    SR176400 = 176400,
-    SR192000 = 192000
-};
 
 struct audio_ctx
 {
@@ -57,7 +48,7 @@ struct audio_ctx
     {
         // Convert from other(usually input) to me(usually expected)
         return m_sample_rate != other.m_sample_rate ? 
-                std::make_optional(std::to_underlying(m_sample_rate) / std::to_underlying(other.m_sample_rate)): 
+                std::make_optional(m_sample_rate / other.m_sample_rate): 
                 std::nullopt;
     }
 };
