@@ -18,7 +18,7 @@
 #include "lockfree_queue.h"
 #include "samplerate.h"
 
-template<AudioSampleType AudioType>
+template<audio_sample_type AudioType>
 struct audio_queue
 {
 	/**
@@ -26,7 +26,7 @@ struct audio_queue
      * 
      */
 	audio_queue()
-		: m_queue(m_expected_context.m_channel_num * std::to_underlying(m_expected_context.m_sample_rate) * default_latency_ms / 1000)
+		: m_queue(static_cast<size_t>(m_expected_context.m_channel_num) * m_expected_context.m_sample_rate * default_latency_ms / 1000)
 	{}
 
 	/**
@@ -35,9 +35,9 @@ struct audio_queue
      * @param user_expected_ctx User expected output audio context.
      * @param user_expected_lat_ms User expected queue capacity (in latency, ms)
      */
-	audio_queue(audio_context user_expected_ctx, size_t user_expected_lat_ms = 200)
+	audio_queue(audio_ctx user_expected_ctx, size_t user_expected_lat_ms = 200)
 		: m_expected_context(user_expected_ctx),
-		  m_queue(static_cast<size_t>(user_expected_ctx.m_channel_num * std::to_underlying(user_expected_ctx.m_sample_rate)) * user_expected_lat_ms / 1000)
+		  m_queue(static_cast<size_t>(user_expected_ctx.m_channel_num) * user_expected_ctx.m_sample_rate * user_expected_lat_ms / 1000)
 	{}
 
 	/* Copy or move a queue is not allowed */
@@ -61,13 +61,16 @@ struct audio_queue
      * @return true Push operation succeeded
      * @return false Push operation failed
      */
-	bool push_audio(const audio_context& input_context, AudioType* input_data, std::size_t input_frame)
+	bool push_audio(const audio_ctx& input_context, AudioType* input_data, std::size_t input_frame)
 	{
 		// Converte all sample into float format.
 		const uint8_t input_channels = input_context.m_channel_num;
 
-		auto [to_float, _]			 = make_audio_converters<AudioType>();
-		auto input_data_float		 = std::span{input_data, input_frame * input_channels} | std::views::transform(to_float) | std::ranges::to<std::vector<float>>();
+        // Get convert to float tool function.
+		auto [to_float, _]	  = make_audio_converters<AudioType>();
+		auto input_data_float = std::span{input_data, input_frame * input_channels} 
+                                    | std::views::transform(to_float) 
+                                    | std::ranges::to<std::vector<float>>();
 
 		// Buffer for possible resample operation.
 		std::vector<float> temp;
@@ -155,7 +158,7 @@ struct audio_queue
      * @return true Pop operation succeeded
      * @return false Pop operation failed
      */
-	bool pop_audio(const audio_context& output_ctx, AudioType* output_buffer, std::size_t frame_count)
+	bool pop_audio(const audio_ctx& output_ctx, AudioType* output_buffer, std::size_t frame_count)
 	{
 		// Verify consistency between output and expectated context
 		if (output_ctx != m_expected_context)
@@ -187,10 +190,10 @@ struct audio_queue
 		return popped == total_samples;
 	}
 
-private:
+	private:
 
 	static constexpr auto  default_latency_ms = 200;
 
-	audio_context		   m_expected_context;
+	audio_ctx			   m_expected_context;
 	lockfree::queue<float> m_queue;
 };

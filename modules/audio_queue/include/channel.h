@@ -13,6 +13,8 @@
 #include <cstdint>
 #include <string_view>
 #include <vector>
+#include <vector>
+
 
 struct channel_layout
 {
@@ -31,14 +33,6 @@ struct channel_layout
 	// Channel mapping matrix type
 	using MatrixType = std::vector<std::vector<float>>;
 
-	// Default comparaison
-	constexpr bool operator==(const channel_layout& rhs) const = default;
-	constexpr bool operator!=(const channel_layout& rhs) const = default;
-
-	// Comparaison tools with a value
-	constexpr bool operator==(value rhs) const { return m_value == rhs; }
-	constexpr bool operator!=(value rhs) const { return m_value != rhs; }
-
 	/**
      * @brief Construct from a enum value.
      * @param value Enum value for construction
@@ -55,19 +49,18 @@ struct channel_layout
      */
 	channel_layout(std::string_view name);
 
-	/**
-     * @brief Return the value name in string.
-     * 
-     * @return const char* const Name of channel layout, see the constrctor above.
-     */
-	[[nodiscard]] const char* to_str();
+	// Comparaison
+	constexpr bool operator==(channel_layout rhs) const { return m_value == rhs.m_value; }
+	constexpr bool operator==(value rhs) const { return m_value == rhs; }
+	constexpr bool operator!=(channel_layout rhs) const { return m_value != rhs.m_value; }
+	constexpr bool operator!=(value rhs) const { return m_value != rhs; }
 
 	/**
      * @brief Value operator, return number of channels.
      * 
      * @return value number of channels
      */
-	[[nodiscard]] constexpr operator value() const { return m_value; }
+	constexpr operator value() const { return m_value; }
 
 	/**
      * @brief Matrix for channel conversion
@@ -75,7 +68,16 @@ struct channel_layout
      * @param input The input channel layout.
      * @return std::vector<std::vector<float>> The matrix to use 
      */
-	[[nodiscard]] MatrixType matrix_to(channel_layout target) const;
+	[[nodiscard]] 
+    MatrixType matrix_to(channel_layout target) const;
+
+	/**
+     * @brief Return the value name in string.
+     * 
+     * @return const char* const Name of channel layout, see the constrctor above.
+     */
+	[[nodiscard]] 
+    const char* to_str();
 
 private:
 
