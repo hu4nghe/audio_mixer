@@ -79,7 +79,7 @@ struct audio_context
  *       making them safe for use in parallel algorithms and range-based transformations.
  *       
  */
-template<AudioSampleType AudioType>
+template<audio_sample_type AudioType>
 constexpr auto
 make_audio_converters()
 {
