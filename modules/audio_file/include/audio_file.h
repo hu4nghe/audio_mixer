@@ -20,7 +20,7 @@
 
 namespace fs = std::filesystem;
 
-template <AudioSampleType AudioType>
+template <audio_sample_type AudioType>
 class audio_file : public input_module_base<AudioType>
 {
     std::vector<fs::path> m_audios;

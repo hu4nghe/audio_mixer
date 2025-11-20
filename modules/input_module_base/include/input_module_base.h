@@ -18,7 +18,7 @@
 /**
  * @brief Audio mixer input module base class
  */
-template<AudioSampleType AudioType>
+template<audio_sample_type AudioType>
 class input_module_base
 {
 	using QueueType = audio_queue<AudioType>;
@@ -64,6 +64,6 @@ public:
 template<typename ClassType, typename AudioType>
 concept InputModuleType =
 	requires(ClassType class_obj) {
-		requires AudioSampleType<AudioType>;
+		requires audio_sample_type<AudioType>;
 		requires std::derived_from<ClassType, input_module_base<AudioType>>;
 	};
