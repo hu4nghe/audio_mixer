@@ -13,7 +13,6 @@
 #include <cstdint>
 #include <string_view>
 #include <vector>
-#include <vector>
 
 
 struct channel_layout
