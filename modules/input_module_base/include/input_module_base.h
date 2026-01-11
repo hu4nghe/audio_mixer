@@ -18,52 +18,53 @@
 /**
  * @brief Audio mixer input module base class
  */
-template<audio_sample_type AudioType>
-class input_module_base
+template <audio_sample_type AudioType> class input_module_base
 {
-	using QueueType = audio_queue<AudioType>;
+    using QueueType = audio_queue<AudioType>;
 
-	std::shared_ptr<QueueType> m_target_queue;
-	audio_context			   m_output_context;
-	bool					   m_is_active;
+    std::shared_ptr<QueueType> m_target_queue;
+    audio_context              m_output_context;
+    bool                       m_is_active;
 
-public:
+    public:
 
-	input_module_base()
-		: m_is_active(false)
-	{}
+    input_module_base() : m_is_active(false) {}
 
-	input_module_base(std::shared_ptr<QueueType> sp_target, const audio_context& expected_ctx)
-		: m_target_queue(sp_target),
-		  m_is_active(false),
-		  m_output_context(expected_ctx)
-	{}
+    input_module_base(
+        std::shared_ptr<QueueType> sp_target,
+        const audio_context&       expected_ctx)
+        : m_target_queue(sp_target),
+          m_is_active(false),
+          m_output_context(expected_ctx)
+    {}
 
-	virtual ~input_module_base() = default;
+    virtual ~input_module_base() = default;
 
-	// You don't want to copy of move a audio mixer input module.
-	input_module_base(const input_module_base& other)			 = delete;
-	input_module_base(input_module_base&& other)				 = delete;
-	input_module_base& operator=(const input_module_base& other) = delete;
-	input_module_base& operator=(input_module_base&& other)		 = delete;
+    // You don't want to copy of move a audio mixer input module.
+    input_module_base(const input_module_base& other)            = delete;
+    input_module_base(input_module_base&& other)                 = delete;
+    input_module_base& operator=(const input_module_base& other) = delete;
+    input_module_base& operator=(input_module_base&& other)      = delete;
 
-	// Pure virtual start and stop mmodule fucntion
-	virtual void start() = 0;
-	virtual void stop()	 = 0;
+    // Pure virtual start and stop mmodule fucntion
+    virtual void start() = 0;
+    virtual void stop()  = 0;
 
-	/**
-	 * @brief See if the module is currently active
-	 * 
-	 * @return true module is active
-	 * @return false module is not active
-	 */
-	[[nodiscard]] bool active() const { return m_is_active; }
+    /**
+     * @brief See if the module is currently active
+     *
+     * @return true module is active
+     * @return false module is not active
+     */
+    [[nodiscard]] bool active() const
+    {
+        return m_is_active;
+    }
 };
 
 /* Input module type concept */
-template<typename ClassType, typename AudioType>
-concept InputModuleType =
-	requires(ClassType class_obj) {
-		requires audio_sample_type<AudioType>;
-		requires std::derived_from<ClassType, input_module_base<AudioType>>;
-	};
+template <typename ClassType, typename AudioType>
+concept InputModuleType = requires(ClassType class_obj) {
+    requires audio_sample_type<AudioType>;
+    requires std::derived_from<ClassType, input_module_base<AudioType>>;
+};
