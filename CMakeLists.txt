@@ -5,6 +5,8 @@ project(audio_mixer
     DESCRIPTION "A MPMC audio mixer"
 )
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 include(FetchContent)
 #add_subdirectory(modules/audio_mixer)
 add_subdirectory(modules/audio_queue)

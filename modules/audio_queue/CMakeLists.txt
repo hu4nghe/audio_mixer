@@ -4,7 +4,7 @@ option(BUILD_TESTING "Enable testing" OFF)
 FetchContent_Declare(
         lockfree_queue
         GIT_REPOSITORY https://github.com/hu4nghe/lockfree_queue
-        GIT_TAG master
+        GIT_TAG v1.0.1
     )
     FetchContent_MakeAvailable(lockfree_queue)
 
